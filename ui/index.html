@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Partsol HF Inference Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #e2e8f0; }
+    header { padding: 18px 20px; background: #111827; box-shadow: 0 1px 0 rgba(255,255,255,0.06); }
+    h1 { margin: 0; font-size: 18px; letter-spacing: 0.2px; }
+    .container { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+    label { display: block; font-size: 14px; opacity: 0.9; margin-bottom: 6px; }
+    select, input[type="text"], textarea { width: 100%; padding: 10px 12px; background: #0b1220; border: 1px solid #243045; border-radius: 10px; color: #e2e8f0; outline: none; }
+    textarea { min-height: 120px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btn { background: #2563eb; color: white; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    pre { background: #0b1220; border: 1px solid #243045; padding: 10px; border-radius: 10px; overflow: auto; }
+    .muted { color: #93a1b1; font-size: 13px; }
+    .sep { height: 1px; background: #1f2937; margin: 16px -16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Partsol • Hugging Face Inference Demo</h1>
+  </header>
+  <div class="container">
+    <div class="card">
+      <h3>Text Tasks</h3>
+      <div class="row">
+        <div>
+          <label>Task</label>
+          <select id="task">
+            <option value="text-classification">text-classification</option>
+            <option value="text-generation">text-generation</option>
+            <option value="summarization">summarization</option>
+            <option value="question-answering">question-answering</option>
+            <option value="fill-mask">fill-mask</option>
+            <option value="token-classification">token-classification</option>
+          </select>
+        </div>
+        <div>
+          <label>Model ID (optional)</label>
+          <input id="model" type="text" placeholder="e.g. distilbert-base-uncased-finetuned-sst-2-english" />
+        </div>
+      </div>
+      <label style="margin-top:10px;">Inputs</label>
+      <textarea id="inputs" placeholder="Enter input text here. For QA: {'question': '...', 'context': '...'}"></textarea>
+      <label style="margin-top:10px;">Parameters (JSON, optional)</label>
+      <input id="params" type="text" placeholder='e.g. {"max_new_tokens": 30, "top_k": 5}' />
+      <div style="margin-top:12px;">
+        <button class="btn" id="runText">Run Inference</button>
+        <span class="muted" style="margin-left:10px;">Endpoint: <code>/api/infer</code></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Image Classification</h3>
+      <div class="row">
+        <div>
+          <label>Model ID (optional)</label>
+          <input id="imageModel" type="text" placeholder="e.g. google/vit-base-patch16-224" />
+        </div>
+        <div>
+          <label>Image File</label>
+          <input id="imageFile" type="file" accept="image/*" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn" id="runImage">Classify Image</button>
+        <span class="muted" style="margin-left:10px;">Endpoint: <code>/api/infer-image</code></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Response</h3>
+      <pre id="out"><span class="muted">Responses will appear here.</span></pre>
+    </div>
+
+    <p class="muted">Tip: leave the Model ID empty to use a small, fast default model for each task.</p>
+  </div>
+
+<script>
+function show(obj) {
+  document.getElementById("out").textContent = JSON.stringify(obj, null, 2);
+}
+
+document.getElementById("runText").addEventListener("click", async () => {
+  const btn = document.getElementById("runText");
+  btn.disabled = true;
+  try {
+    const task = document.getElementById("task").value;
+    const model = document.getElementById("model").value.trim();
+    const inputsRaw = document.getElementById("inputs").value.trim();
+    const paramsRaw = document.getElementById("params").value.trim();
+
+    let inputs;
+    try {
+      // Try parse as JSON, fallback to string
+      inputs = JSON.parse(inputsRaw);
+    } catch {
+      inputs = inputsRaw;
+    }
+
+    let parameters = {};
+    if (paramsRaw) {
+      try { parameters = JSON.parse(paramsRaw); } catch (e) { alert("Parameters must be valid JSON"); btn.disabled = false; return; }
+    }
+
+    const body = { task, inputs, parameters };
+    if (model) body.model_id = model;
+
+    const res = await fetch("/api/infer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    show(data);
+  } catch (e) {
+    show({ error: String(e) });
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("runImage").addEventListener("click", async () => {
+  const btn = document.getElementById("runImage");
+  btn.disabled = true;
+  try {
+    const model = document.getElementById("imageModel").value.trim();
+    const file = document.getElementById("imageFile").files[0];
+    if (!file) { alert("Please choose an image."); btn.disabled = false; return; }
+
+    const form = new FormData();
+    form.append("file", file);
+    if (model) form.append("model_id", model);
+
+    const res = await fetch("/api/infer-image", {
+      method: "POST",
+      body: form,
+    });
+    const data = await res.json();
+    show(data);
+  } catch (e) {
+    show({ error: String(e) });
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
