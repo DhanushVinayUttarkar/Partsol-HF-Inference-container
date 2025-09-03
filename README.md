@@ -41,15 +41,15 @@ docker compose down
 
 ---
 
-## 3) How it works (High level)
+## 3) How it works
 
-- **FastAPI app** (Python) exposes:
-  - `POST /infer` for text tasks (text-classification, text-generation, summarization, question-answering, fill-mask, token-classification).
+- **FastAPI app** exposes:
+  - `POST /infer` for text tasks (text-classification, text-generation, summarization, question-answering, etc..).
   - `POST /infer-image` for image-classification with file upload.
-  - Pipelines are **cached** in-process keyed by `(task, model_id)` for speed, with a **Lock** per pipeline for safe use.
+  - Pipelines are **cached** in-process keyed by `(task, model_id)` for speed, with a **Lock** per pipeline for safe usage.
 - **Gunicorn** starts multiple **Uvicorn** workers (ASGI), enabling **parallel request handling**.
-- **NGINX** sits in front, serving the static UI and proxying `/api/*` to the app. This also gives you an easy place to add TLS, rate limits, etc.
-- **HF model cache** is persisted in a Docker **volume** (`hf-cache`) so models are downloaded once and reused across restarts.
+- **NGINX** sits in the front, serving the static UI and proxying `/api/*` to the app.
+- **Hugging Face model cache** is persisted in a Docker **volume** (`hf-cache`) so models are downloaded once and reused across restarts.
 
 
 ## 4) Why the distilbert-base-uncased-finetuned-sst-2-english model?
